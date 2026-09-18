@@ -108,6 +108,17 @@ type SavedDirectorProject = {
   createdAt: string | null;
 };
 
+type RenderJob = {
+  status: "queued" | "running" | "completed" | "failed";
+  stage?: string;
+  jobId: string;
+  projectId: string;
+  totalScenes?: number;
+  completedScenes?: number;
+  finalUrl?: string;
+  error?: string;
+};
+
 type AnalyzeResult = {
   duration?: number;
   bpm?: number;
@@ -1511,6 +1522,8 @@ export function AiVideoDirectorClient({ embedded = false, initialAudioTaskId, in
   const [activeSceneId, setActiveSceneId] = useState<number | null>(null);
   const [savingScenes, setSavingScenes] = useState(false);
   const [sceneSaveStatus, setSceneSaveStatus] = useState("");
+  const [renderJob, setRenderJob] = useState<RenderJob | null>(null);
+  const [renderLoading, setRenderLoading] = useState(false);
   const [referenceSlotFiles, setReferenceSlotFiles] = useState<Record<string, string>>({});
   const [activeReferenceSlot, setActiveReferenceSlot] = useState<string | null>(null);
   const initialAudioTaskRef = useRef("");
@@ -1626,6 +1639,29 @@ export function AiVideoDirectorClient({ embedded = false, initialAudioTaskId, in
       setActiveSceneId(project.scenes[0].id);
     }
   }, [activeSceneId, project]);
+
+  useEffect(() => {
+    if (!renderJob?.jobId || renderJob.status === "completed" || renderJob.status === "failed") return;
+    let cancelled = false;
+    let timer: number | undefined;
+    const poll = async () => {
+      try {
+        const response = await apiFetch(`/api/tools/ai-video-director/render?jobId=${encodeURIComponent(renderJob.jobId)}`);
+        const data = await response.json() as RenderJob;
+        if (!cancelled && response.ok) {
+          setRenderJob(data);
+          if (data.status !== "completed" && data.status !== "failed") timer = window.setTimeout(() => void poll(), 5000);
+        }
+      } catch {
+        if (!cancelled) timer = window.setTimeout(() => void poll(), 8000);
+      }
+    };
+    void poll();
+    return () => {
+      cancelled = true;
+      if (timer) window.clearTimeout(timer);
+    };
+  }, [renderJob?.jobId, renderJob?.status]);
 
   const useSample = () => {
     const defaults = form.mode === "film" ? FILM_DEFAULT_FORM : CLIP_DEFAULT_FORM;
@@ -2064,6 +2100,31 @@ export function AiVideoDirectorClient({ embedded = false, initialAudioTaskId, in
     }
   };
 
+  const renderFullVideo = async () => {
+    if (!project?.projectId) return;
+    if (!project.unlocked) {
+      await unlock();
+      return;
+    }
+    setRenderLoading(true);
+    setError(null);
+    try {
+      if (sceneSaveStatus && !sceneSaveStatus.includes("сохранён")) {
+        const saved = await saveStoryboardScenes();
+        if (!saved) return;
+      }
+      const data = await postJson<RenderJob>("/api/tools/ai-video-director/render", {
+        projectId: project.projectId,
+        paymentId: paymentId || undefined,
+      });
+      setRenderJob(data);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Не удалось поставить видео в рендер");
+    } finally {
+      setRenderLoading(false);
+    }
+  };
+
   const copyPrimaryPrompt = async () => {
     const scene = project?.scenes?.[0];
     if (!scene) return;
@@ -2482,8 +2543,36 @@ export function AiVideoDirectorClient({ embedded = false, initialAudioTaskId, in
                   {pdfLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
                   PDF production pack
                 </button>
+                <button
+                  type="button"
+                  onClick={() => void renderFullVideo()}
+                  disabled={renderLoading || unlocking || !project.unlocked}
+                  className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[#7048ff] px-4 py-3 font-extrabold text-white shadow-sm transition hover:-translate-y-0.5 disabled:opacity-60"
+                >
+                  {renderLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Film className="h-4 w-4" />}
+                  Сгенерировать видео H3
+                </button>
               </div>
             </div>
+
+            {renderJob && (
+              <div className="rounded-2xl border border-[#7048ff]/25 bg-white p-4 shadow-sm">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="font-extrabold text-[#202039]">MiniMax H3: {renderJob.stage || renderJob.status}</p>
+                    <p className="mt-1 text-sm text-[#666982]">
+                      Сцены: {renderJob.completedScenes || 0}/{renderJob.totalScenes || project.scenes.length}. Очередь работает на RTX 4090.
+                    </p>
+                  </div>
+                  {renderJob.status === "completed" && renderJob.finalUrl && (
+                    <a href={renderJob.finalUrl} className="inline-flex items-center gap-2 rounded-xl bg-[#171735] px-4 py-2.5 text-sm font-extrabold text-white" download>
+                      <Download className="h-4 w-4" /> Скачать MP4
+                    </a>
+                  )}
+                </div>
+                {renderJob.status === "failed" && <p className="mt-3 text-sm font-semibold text-rose-600">{renderJob.error || "Рендер завершился ошибкой"}</p>}
+              </div>
+            )}
 
             <div className="grid min-w-0 gap-4">
               <StoryboardStudio

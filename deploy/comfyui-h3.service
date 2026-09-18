@@ -1,0 +1,24 @@
+[Unit]
+Description=ComfyUI MiniMax H3 video renderer
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/comfyui
+Environment=PYTHONUNBUFFERED=1
+Environment=CUDA_VISIBLE_DEVICES=0
+Environment=PYTHONPATH=/opt/comfyui
+ExecStart=/opt/comfyui/.venv/bin/python main.py --listen 127.0.0.1 --port 8188 --disable-auto-launch --lowvram --fp16-vae --disable-cuda-malloc --preview-method none
+Restart=on-failure
+RestartSec=10
+TimeoutStopSec=30
+LimitNOFILE=65536
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ReadWritePaths=/opt/comfyui
+
+[Install]
+WantedBy=multi-user.target
