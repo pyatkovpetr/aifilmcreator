@@ -6,7 +6,14 @@ export function largeAudioFileMessage(sizeMb: number): string {
 }
 
 export function getAuthHeaders(): Record<string, string> {
-  return { "x-director-user": "local-browser" };
+  if (typeof window === "undefined") return { "x-director-user": "local-server" };
+  const key = "ai-film-creator:user-id";
+  let id = window.localStorage.getItem(key);
+  if (!id) {
+    id = typeof crypto.randomUUID === "function" ? crypto.randomUUID() : `browser-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    window.localStorage.setItem(key, id);
+  }
+  return { "x-director-user": id };
 }
 
 export function apiFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
