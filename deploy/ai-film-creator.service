@@ -1,0 +1,24 @@
+[Unit]
+Description=AI Film Creator standalone director
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/ai-film-creator
+EnvironmentFile=-/opt/ai-film-creator/.env
+Environment=NODE_ENV=production
+Environment=PORT=4310
+Environment=HOSTNAME=127.0.0.1
+ExecStart=/usr/bin/pnpm exec next start -p 4310 -H 127.0.0.1
+Restart=always
+RestartSec=5
+TimeoutStopSec=20
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ReadWritePaths=/var/lib/ai-film-creator
+
+[Install]
+WantedBy=multi-user.target
