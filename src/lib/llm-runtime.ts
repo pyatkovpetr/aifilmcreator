@@ -33,6 +33,7 @@ export async function callConfiguredLlmJson(
     const payload = await response.json() as { choices?: Array<{ message?: { content?: string } }> };
     const content = payload.choices?.[0]?.message?.content?.trim();
     if (!content) return null;
+    console.info(`[ai-film-creator] external LLM response received model=${model}`);
     try {
       return JSON.parse(content);
     } catch {
