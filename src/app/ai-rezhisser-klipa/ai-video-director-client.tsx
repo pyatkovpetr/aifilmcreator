@@ -1,10 +1,12 @@
 "use client";
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type DragEvent } from "react";
 import {
+  ArrowLeft,
   ArrowDownToLine,
   Camera,
   Check,
   CheckCircle2,
+  ChevronDown,
   Clapperboard,
   Clock3,
   Copy,
@@ -12,17 +14,23 @@ import {
   FileText,
   Film,
   FolderOpen,
+  Grid2X2,
   GripVertical,
   Lightbulb,
   Loader2,
+  LayoutGrid,
   Lock,
+  MoreHorizontal,
   Pencil,
+  Plus,
   Save,
   MessageSquareText,
   Music2,
+  Search,
   SlidersHorizontal,
   Sparkles,
   UploadCloud,
+  UserRound,
   Wand2,
 } from "lucide-react";
 import { useAuth, useAuthModal } from "@/lib/standalone-auth";
@@ -107,6 +115,28 @@ type SavedDirectorProject = {
   updatedAt: string | null;
   createdAt: string | null;
 };
+
+type DirectorLibraryItem = {
+  id: string;
+  title: string;
+  subtitle: string;
+  scenes: string;
+  kind: "клип" | "фильм";
+  gradient: string;
+  sourceText?: string;
+};
+
+const DIRECTOR_LIBRARY_EXAMPLES: DirectorLibraryItem[] = [
+  { id: "new-shores", title: "К новым берегам", subtitle: "Performance + смысл текста", scenes: "2/2", kind: "клип", gradient: "radial-gradient(circle at 72% 24%, rgba(254,215,170,.96), transparent 26%), linear-gradient(135deg, #2b1747 0%, #692f70 46%, #ee7e5d 100%)" },
+  { id: "glass-labyrinth", title: "Ночной город", subtitle: "Стеклянный лабиринт", scenes: "2/2", kind: "клип", gradient: "radial-gradient(circle at 20% 18%, rgba(125,211,252,.8), transparent 26%), linear-gradient(135deg, #071832 0%, #164e63 48%, #7c3aed 100%)" },
+  { id: "glass-mirrors", title: "Ночной город", subtitle: "Стеклянные зеркала", scenes: "18/18", kind: "клип", gradient: "radial-gradient(circle at 68% 34%, rgba(244,114,182,.86), transparent 21%), linear-gradient(135deg, #111827 0%, #3b0764 52%, #be185d 100%)" },
+  { id: "reality-mirror", title: "Ночной город", subtitle: "Разбитое зеркало реальности", scenes: "2/3", kind: "клип", gradient: "radial-gradient(circle at 48% 35%, rgba(226,232,240,.92), transparent 18%), linear-gradient(135deg, #0f172a 0%, #334155 52%, #64748b 100%)" },
+  { id: "hero-path", title: "Ночной город", subtitle: "Путь героя", scenes: "2/18", kind: "клип", gradient: "radial-gradient(circle at 75% 18%, rgba(251,191,36,.9), transparent 20%), linear-gradient(135deg, #172554 0%, #312e81 48%, #f59e0b 100%)" },
+  { id: "symbolic-realism", title: "Ночной город", subtitle: "Символический реализм", scenes: "2/19", kind: "клип", gradient: "radial-gradient(circle at 28% 24%, rgba(134,239,172,.8), transparent 24%), linear-gradient(135deg, #052e16 0%, #166534 49%, #0f766e 100%)" },
+  { id: "er-saqchysy-light", title: "er_saqchysy", subtitle: "Выход к свету", scenes: "2/19", kind: "клип", gradient: "radial-gradient(circle at 52% 30%, rgba(253,224,71,.94), transparent 22%), linear-gradient(135deg, #172554 0%, #0369a1 48%, #fde047 100%)" },
+  { id: "er-saqchysy-ritual", title: "er_saqchysy", subtitle: "Обряд света в репетиции", scenes: "2/19", kind: "клип", gradient: "radial-gradient(circle at 65% 25%, rgba(251,146,60,.92), transparent 25%), linear-gradient(135deg, #1c1917 0%, #7c2d12 48%, #ea580c 100%)" },
+  { id: "er-saqchysy-voice", title: "er_saqchysy", subtitle: "Древний голос в современном городе", scenes: "2/19", kind: "клип", gradient: "radial-gradient(circle at 32% 26%, rgba(165,243,252,.9), transparent 24%), linear-gradient(135deg, #083344 0%, #155e75 48%, #0e7490 100%)" },
+];
 
 type RenderJob = {
   status: "queued" | "running" | "completed" | "failed";
@@ -1496,6 +1526,170 @@ function HiddenScenesGate({
   );
 }
 
+function DirectorGlobalNav({
+  view,
+  onProjects,
+  onNewProject,
+}: {
+  view: "projects" | "create";
+  onProjects: () => void;
+  onNewProject: () => void;
+}) {
+  return (
+    <header className="border-b border-white/[0.08] bg-[#0c0d0f]/95 px-4 backdrop-blur-xl sm:px-7">
+      <div className="mx-auto flex min-h-[68px] max-w-[1720px] items-center gap-5">
+        <button type="button" onClick={onProjects} className="flex shrink-0 items-center gap-2.5 text-left">
+          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-[#8b5cf6] to-[#22d3ee] text-white shadow-[0_0_28px_rgba(124,58,237,.35)]">
+            <Clapperboard className="h-4 w-4" />
+          </span>
+          <span className="hidden sm:block">
+            <span className="block text-sm font-black tracking-tight text-white">AI режиссёр</span>
+            <span className="block text-[10px] font-medium text-white/40">Cinema Studio</span>
+          </span>
+        </button>
+
+        <nav className="hidden items-center gap-1 text-sm font-semibold text-white/55 lg:flex" aria-label="Основная навигация">
+          <button type="button" onClick={onProjects} className={cn("rounded-lg px-3 py-2 transition hover:bg-white/[0.06] hover:text-white", view === "projects" && "bg-white/[0.07] text-white")}>Projects</button>
+          <button type="button" onClick={onNewProject} className={cn("rounded-lg px-3 py-2 transition hover:bg-white/[0.06] hover:text-white", view === "create" && "text-white")}>Generate</button>
+          <button type="button" className="rounded-lg px-3 py-2 transition hover:bg-white/[0.06] hover:text-white">Assets</button>
+          <button type="button" className="rounded-lg px-3 py-2 transition hover:bg-white/[0.06] hover:text-white">Community</button>
+        </nav>
+
+        <div className="ml-auto flex items-center gap-2">
+          <button type="button" onClick={onNewProject} className="hidden items-center gap-2 rounded-xl bg-white px-3.5 py-2 text-xs font-extrabold text-[#111214] transition hover:bg-white/85 sm:inline-flex">
+            <Plus className="h-3.5 w-3.5" /> Новый проект
+          </button>
+          <button type="button" className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/[0.12] text-white/70 transition hover:border-white/25 hover:text-white" aria-label="Профиль">
+            <UserRound className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+    </header>
+  );
+}
+
+function DirectorProjectCard({
+  item,
+  onClick,
+  badge,
+}: {
+  item: DirectorLibraryItem;
+  onClick: () => void;
+  badge?: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="group min-w-0 overflow-hidden rounded-[18px] border border-white/[0.09] bg-[#17181b] text-left transition duration-200 hover:-translate-y-1 hover:border-white/25 hover:bg-[#1b1c20] hover:shadow-[0_16px_45px_rgba(0,0,0,.28)]"
+    >
+      <div className="relative aspect-[1.62/1] overflow-hidden" style={{ background: item.gradient }}>
+        <div className="absolute inset-0 bg-[linear-gradient(to_top,rgba(3,5,8,.8),transparent_60%)]" />
+        <div className="absolute left-3 top-3 flex items-center gap-1.5 rounded-full border border-white/15 bg-black/20 px-2.5 py-1 text-[10px] font-bold text-white/80 backdrop-blur-md">
+          <Sparkles className="h-3 w-3" /> AI режиссёр
+        </div>
+        <span className="absolute bottom-3 left-3 right-3 line-clamp-2 text-base font-extrabold leading-tight text-white drop-shadow-lg">{item.subtitle}</span>
+        <span className="absolute bottom-3 right-3 flex h-8 w-8 items-center justify-center rounded-full border border-white/20 bg-black/25 text-white opacity-0 backdrop-blur transition group-hover:opacity-100">
+          <ArrowDownToLine className="h-3.5 w-3.5 rotate-[-45deg]" />
+        </span>
+      </div>
+      <div className="p-3.5">
+        <div className="flex items-start justify-between gap-3">
+          <p className="min-w-0 truncate text-sm font-extrabold text-white/90">{item.title}</p>
+          {badge ? <span className="shrink-0 rounded-full bg-white/[0.08] px-2 py-1 text-[10px] font-bold text-white/50">{badge}</span> : <MoreHorizontal className="h-4 w-4 shrink-0 text-white/30" />}
+        </div>
+        <p className="mt-1 text-xs font-medium text-white/40">{item.scenes} сцен · {item.kind}</p>
+      </div>
+    </button>
+  );
+}
+
+function DirectorProjectLibrary({
+  savedProjects,
+  savedProjectsLoading,
+  onOpenSaved,
+  onOpenExample,
+  onNewProject,
+}: {
+  savedProjects: SavedDirectorProject[];
+  savedProjectsLoading: boolean;
+  onOpenSaved: (projectId: string) => void;
+  onOpenExample: (item: DirectorLibraryItem) => void;
+  onNewProject: () => void;
+}) {
+  const [query, setQuery] = useState("");
+  const [activeTab, setActiveTab] = useState<"all" | "clip" | "film">("all");
+  const [gridView, setGridView] = useState(true);
+  const normalizedQuery = query.trim().toLocaleLowerCase();
+  const savedItems: DirectorLibraryItem[] = savedProjects.map((item, index) => ({
+    id: item.projectId,
+    title: item.title,
+    subtitle: item.selectedIdeaTitle || "Новый режиссёрский проект",
+    scenes: `${item.scenesReady}/${item.totalScenes || item.scenesReady}`,
+    kind: item.mode === "film" ? "фильм" : "клип",
+    gradient: DIRECTOR_LIBRARY_EXAMPLES[index % DIRECTOR_LIBRARY_EXAMPLES.length].gradient,
+  }));
+  const allItems = [...savedItems, ...DIRECTOR_LIBRARY_EXAMPLES];
+  const filteredItems = allItems.filter((item) => {
+    const matchesTab = activeTab === "all" || item.kind === (activeTab === "clip" ? "клип" : "фильм");
+    const matchesQuery = !normalizedQuery || `${item.title} ${item.subtitle}`.toLocaleLowerCase().includes(normalizedQuery);
+    return matchesTab && matchesQuery;
+  });
+
+  return (
+    <section className="min-h-[calc(100vh-69px)] bg-[#0c0d0f] px-4 pb-16 pt-9 text-white sm:px-7 lg:pt-12">
+      <div className="mx-auto max-w-[1720px]">
+        <div className="flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[.22em] text-white/35">Workspace / Projects</p>
+            <h1 className="mt-3 text-3xl font-black tracking-[-.04em] text-white sm:text-5xl">Мои AI режиссёрские проекты</h1>
+            <p className="mt-3 max-w-2xl text-sm leading-relaxed text-white/45 sm:text-base">Соберите идею, раскадровку по таймкодам и prompt-ready сцены в одной production-папке.</p>
+          </div>
+          <button type="button" onClick={onNewProject} className="inline-flex w-fit items-center gap-2 rounded-xl bg-white px-4 py-3 text-sm font-extrabold text-[#101113] transition hover:bg-white/85">
+            <Plus className="h-4 w-4" /> Создать проект
+          </button>
+        </div>
+
+        <div className="mt-10 flex flex-col gap-4 border-b border-white/[0.09] pb-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex items-center gap-1">
+            {[
+              { id: "all" as const, label: "Все проекты" },
+              { id: "clip" as const, label: "Клипы" },
+              { id: "film" as const, label: "Фильмы" },
+            ].map((tab) => (
+              <button key={tab.id} type="button" onClick={() => setActiveTab(tab.id)} className={cn("rounded-lg px-3 py-2 text-sm font-bold transition", activeTab === tab.id ? "bg-white text-[#111214]" : "text-white/45 hover:bg-white/[0.06] hover:text-white")}>{tab.label}</button>
+            ))}
+          </div>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <label className="flex min-w-0 items-center gap-2 rounded-xl border border-white/[0.11] bg-white/[0.04] px-3 py-2 text-sm text-white/45 focus-within:border-white/30 sm:w-64">
+              <Search className="h-4 w-4 shrink-0" />
+              <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Поиск проектов" className="min-w-0 flex-1 bg-transparent text-white outline-none placeholder:text-white/30" />
+            </label>
+            <button type="button" className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/[0.11] bg-white/[0.04] px-3 py-2 text-sm font-bold text-white/60 transition hover:border-white/25 hover:text-white"><SlidersHorizontal className="h-4 w-4" /> Сортировка <ChevronDown className="h-3.5 w-3.5" /></button>
+            <div className="flex rounded-xl border border-white/[0.11] bg-white/[0.04] p-1">
+              <button type="button" onClick={() => setGridView(true)} className={cn("rounded-lg p-1.5", gridView ? "bg-white text-[#111214]" : "text-white/40 hover:text-white")} aria-label="Сетка"><Grid2X2 className="h-4 w-4" /></button>
+              <button type="button" onClick={() => setGridView(false)} className={cn("rounded-lg p-1.5", !gridView ? "bg-white text-[#111214]" : "text-white/40 hover:text-white")} aria-label="Список"><LayoutGrid className="h-4 w-4" /></button>
+            </div>
+          </div>
+        </div>
+
+        <div className={cn("mt-7 grid gap-4", gridView ? "sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" : "sm:grid-cols-2") }>
+          {savedProjectsLoading && Array.from({ length: 4 }, (_, index) => <div key={`loading-${index}`} className="aspect-[1.62/1] animate-pulse rounded-[18px] bg-white/[0.06]" />)}
+          {filteredItems.map((item, index) => (
+            <DirectorProjectCard
+              key={`${item.id}-${index}`}
+              item={item}
+              badge={index >= savedItems.length ? "пример" : undefined}
+              onClick={() => index < savedItems.length ? onOpenSaved(item.id) : onOpenExample(item)}
+            />
+          ))}
+          {!savedProjectsLoading && filteredItems.length === 0 && <div className="col-span-full rounded-2xl border border-dashed border-white/[0.14] px-6 py-16 text-center text-sm text-white/40">Проекты не найдены. Попробуйте другой запрос или создайте новый.</div>}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export function AiVideoDirectorClient({ embedded = false, initialAudioTaskId, initialAudioFileName }: AiVideoDirectorClientProps) {
   const { user, isAuthenticated, refreshUser } = useAuth();
   const { openAuthModal } = useAuthModal();
@@ -1519,6 +1713,7 @@ export function AiVideoDirectorClient({ embedded = false, initialAudioTaskId, in
   const [audioAnalyzing, setAudioAnalyzing] = useState(false);
   const [savedProjects, setSavedProjects] = useState<SavedDirectorProject[]>([]);
   const [savedProjectsLoading, setSavedProjectsLoading] = useState(false);
+  const [workspaceMode, setWorkspaceMode] = useState<"projects" | "create">("projects");
   const [activeSceneId, setActiveSceneId] = useState<number | null>(null);
   const [savingScenes, setSavingScenes] = useState(false);
   const [sceneSaveStatus, setSceneSaveStatus] = useState("");
@@ -1605,13 +1800,14 @@ export function AiVideoDirectorClient({ embedded = false, initialAudioTaskId, in
     setError(null);
     setActiveSceneId(null);
     setSceneSaveStatus("");
+    setWorkspaceMode("create");
     window.setTimeout(() => {
       document.getElementById("director-form")?.scrollIntoView({ behavior: "smooth", block: "start" });
     }, 80);
   }, []);
 
   useEffect(() => {
-    if (!embedded || !isAuthenticated) return;
+    if (!isAuthenticated) return;
     let cancelled = false;
     setSavedProjectsLoading(true);
     apiFetch("/api/tools/ai-video-director/projects", { headers: getAuthHeaders() })
@@ -1628,7 +1824,7 @@ export function AiVideoDirectorClient({ embedded = false, initialAudioTaskId, in
     return () => {
       cancelled = true;
     };
-  }, [embedded, isAuthenticated]);
+  }, [isAuthenticated]);
 
   useEffect(() => {
     if (!project?.scenes?.length) {
@@ -1673,6 +1869,33 @@ export function AiVideoDirectorClient({ embedded = false, initialAudioTaskId, in
     setReferenceSlotFiles({});
     setSelectedCinematographyPresetId("");
     resetGeneratedState();
+    setWorkspaceMode("create");
+  };
+
+  const startNewProject = () => {
+    setForm(INITIAL_FORM);
+    setAudioFileName("файл не выбран");
+    setReferenceSlotFiles({});
+    setSelectedCharacterPresetId(CLIP_CHARACTER_PRESETS[0]?.id || "");
+    setSelectedCinematographyPresetId("");
+    resetGeneratedState();
+    setWorkspaceMode("create");
+    window.setTimeout(() => document.getElementById("director-form")?.scrollIntoView({ behavior: "smooth", block: "start" }), 40);
+  };
+
+  const openExampleProject = (item: DirectorLibraryItem) => {
+    setForm({
+      ...CLIP_DEFAULT_FORM,
+      title: `${item.title} — ${item.subtitle}`,
+      sourceText: CLIP_SAMPLE_SOURCE,
+    });
+    setAudioFileName("файл не выбран");
+    setReferenceSlotFiles({});
+    setSelectedCharacterPresetId(CLIP_CHARACTER_PRESETS[0]?.id || "");
+    setSelectedCinematographyPresetId("");
+    resetGeneratedState();
+    setWorkspaceMode("create");
+    window.setTimeout(() => document.getElementById("director-form")?.scrollIntoView({ behavior: "smooth", block: "start" }), 40);
   };
 
   const changeMode = (mode: VideoDirectorMode) => {
@@ -1882,6 +2105,7 @@ export function AiVideoDirectorClient({ embedded = false, initialAudioTaskId, in
   const buildStoryboard = async (ideaId = selectedIdeaId) => {
     if (!sessionId || !ideaId) return;
     setSelectedIdeaId(ideaId);
+    setWorkspaceMode("create");
     setProject(null);
     setWidgetToken(null);
     setPaymentId(null);
@@ -1894,7 +2118,7 @@ export function AiVideoDirectorClient({ embedded = false, initialAudioTaskId, in
       });
       setProject(data);
       setSelectedIdeaId(data.selectedIdea.id);
-      if (embedded && isAuthenticated) {
+      if (isAuthenticated) {
         apiFetch("/api/tools/ai-video-director/projects", { headers: getAuthHeaders() })
           .then((res) => res.ok ? res.json() : { items: [] })
           .then((fresh) => setSavedProjects(Array.isArray(fresh.items) ? fresh.items : []))
@@ -1921,6 +2145,7 @@ export function AiVideoDirectorClient({ embedded = false, initialAudioTaskId, in
       if (!res.ok) throw new Error(data.error || "Не удалось открыть проект");
       const saved = data as PublicVideoDirectorProject & { paymentId?: string };
       setForm(saved.input);
+      setWorkspaceMode("create");
       setAnalysis(saved.analysis);
       setIdeas(saved.ideas);
       setSelectedIdeaId(saved.selectedIdea.id);
@@ -2132,8 +2357,60 @@ export function AiVideoDirectorClient({ embedded = false, initialAudioTaskId, in
   };
 
   return (
-    <main className={cn("pg-product-theme min-w-0 max-w-full flex-1 overflow-x-hidden bg-[#f4f5ff] text-[#202039]", embedded && "bg-transparent")}>
-      <section id="director-form" className={cn("pg-product-hero-surface scroll-mt-24 px-4 py-8 sm:py-10", embedded && "px-0 py-0")}>
+    <main className={cn("pg-product-theme min-w-0 max-w-full flex-1 overflow-x-hidden bg-[#0c0d0f] text-[#202039]", embedded && "bg-transparent")}>
+      <DirectorGlobalNav
+        view={workspaceMode}
+        onProjects={() => setWorkspaceMode("projects")}
+        onNewProject={startNewProject}
+      />
+      {workspaceMode === "projects" ? (
+        <DirectorProjectLibrary
+          savedProjects={savedProjects}
+          savedProjectsLoading={savedProjectsLoading}
+          onOpenSaved={(projectId) => void loadSavedProject(projectId)}
+          onOpenExample={openExampleProject}
+          onNewProject={startNewProject}
+        />
+      ) : (
+        <div className="min-h-[calc(100vh-69px)] bg-[#0c0d0f] px-3 pb-16 pt-4 sm:px-5 lg:px-7 lg:pt-6">
+          <div className="mx-auto flex max-w-[1720px] items-start gap-4 xl:gap-6">
+            <aside className="sticky top-4 hidden w-[224px] shrink-0 flex-col rounded-2xl border border-white/[0.09] bg-[#141517] p-4 text-white lg:flex" aria-label="Этапы проекта">
+              <button type="button" onClick={() => setWorkspaceMode("projects")} className="mb-7 inline-flex items-center gap-2 px-2 text-xs font-bold text-white/45 transition hover:text-white"><ArrowLeft className="h-3.5 w-3.5" /> Все проекты</button>
+              <div className="border-b border-white/[0.08] pb-5">
+                <p className="truncate text-sm font-extrabold text-white">{form.title || "Новый проект"}</p>
+                <p className="mt-1 text-xs text-white/35">{form.mode === "clip" ? "Клип" : "Фильм"} · AI режиссёр</p>
+              </div>
+              <div className="mt-5 grid gap-1">
+                {[
+                  { label: "Brief", caption: "Идея и исходный текст", icon: FileText, active: !analysis && !project },
+                  { label: "Ideas", caption: "5 режиссёрских направлений", icon: Lightbulb, active: Boolean(analysis) && !project },
+                  { label: "Storyboard", caption: "Таймкоды и prompt cards", icon: Clapperboard, active: Boolean(project) },
+                  { label: "Render", caption: "H3 · финальный клип", icon: Film, active: Boolean(renderJob) },
+                ].map((step, index) => (
+                  <div key={step.label} className={cn("flex items-start gap-3 rounded-xl px-2.5 py-3", step.active ? "bg-white/[0.08] text-white" : "text-white/35")}>
+                    <span className={cn("flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-xs font-black", step.active ? "bg-white text-[#111214]" : "bg-white/[0.07] text-white/40")}><step.icon className="h-3.5 w-3.5" /></span>
+                    <span className="min-w-0"><span className="block text-xs font-extrabold">{index + 1}. {step.label}</span><span className="mt-0.5 block text-[10px] leading-snug text-white/30">{step.caption}</span></span>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-7 rounded-xl border border-white/[0.08] bg-white/[0.035] p-3">
+                <p className="text-[10px] font-bold uppercase tracking-[.18em] text-white/30">Production bible</p>
+                <p className="mt-2 text-xs leading-relaxed text-white/45">Герой, костюм, локации и continuity фиксируются до генерации.</p>
+                <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/[0.09]"><div className="h-full w-3/4 rounded-full bg-gradient-to-r from-violet-400 to-cyan-300" /></div>
+                <p className="mt-2 text-[10px] font-bold text-white/35">6/8 настроено</p>
+              </div>
+            </aside>
+
+            <div className="min-w-0 flex-1">
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-3 text-white">
+                <div className="flex items-center gap-3">
+                  <button type="button" onClick={() => setWorkspaceMode("projects")} className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/[0.1] bg-white/[0.04] text-white/60 transition hover:border-white/25 hover:text-white lg:hidden" aria-label="Назад к проектам"><ArrowLeft className="h-4 w-4" /></button>
+                  <div><p className="text-[10px] font-bold uppercase tracking-[.2em] text-white/35">Cinema Studio / Generate</p><h2 className="mt-1 text-lg font-extrabold">{project ? "Раскадровка проекта" : "Новый AI режиссёрский проект"}</h2></div>
+                </div>
+                <div className="flex items-center gap-2"><button type="button" className="inline-flex items-center gap-2 rounded-xl border border-white/[0.1] bg-white/[0.04] px-3 py-2 text-xs font-bold text-white/55 transition hover:border-white/25 hover:text-white"><SlidersHorizontal className="h-3.5 w-3.5" /> Filter</button><button type="button" className="inline-flex items-center gap-2 rounded-xl border border-white/[0.1] bg-white/[0.04] px-3 py-2 text-xs font-bold text-white/55 transition hover:border-white/25 hover:text-white"><Grid2X2 className="h-3.5 w-3.5" /> View</button></div>
+              </div>
+
+      <section id="director-form" className={cn("pg-product-hero-surface scroll-mt-24 rounded-2xl px-4 py-8 sm:py-10", embedded && "px-0 py-0")}>
         {embedded && isAuthenticated && (savedProjects.length > 0 || savedProjectsLoading) && (
           <div className="mx-auto mb-6 max-w-[1720px] rounded-2xl border border-[#dfe1f1] bg-white/85 p-4 shadow-sm">
             <div className="mb-3 flex items-center justify-between gap-3">
@@ -2636,6 +2913,10 @@ export function AiVideoDirectorClient({ embedded = false, initialAudioTaskId, in
             </div>
           </div>
         </section>
+      )}
+            </div>
+          </div>
+        </div>
       )}
     </main>
   );
