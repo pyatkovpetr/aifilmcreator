@@ -1,4 +1,4 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { execFile, spawn } from "node:child_process";
 import { promisify } from "node:util";
@@ -66,9 +66,23 @@ export async function POST(req: NextRequest) {
 
 export async function GET(req: NextRequest) {
   const jobId = req.nextUrl.searchParams.get("jobId") || "";
+  const projectId = toProjectId(req.nextUrl.searchParams.get("projectId"));
   try {
-    return NextResponse.json(await readJob(jobId));
+    if (jobId) return NextResponse.json(await readJob(jobId));
+    if (projectId) {
+      const entries = await readdir(join(dataDir(), "renders"));
+      const matching = entries
+        .filter((entry) => entry.startsWith(`${projectId}-`) && /^[-a-zA-Z0-9_]+$/.test(entry))
+        .sort()
+        .reverse();
+      for (const entry of matching) {
+        try {
+          const job = await readJob(entry);
+          if (job.projectId === projectId) return NextResponse.json(job);
+        } catch {}
+      }
+    }
   } catch {
-    return NextResponse.json({ error: "Задача рендера не найдена" }, { status: 404 });
   }
+  return NextResponse.json({ error: "Задача рендера не найдена" }, { status: 404 });
 }

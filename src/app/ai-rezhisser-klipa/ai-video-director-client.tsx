@@ -1762,6 +1762,7 @@ export function AiVideoDirectorClient({ embedded = false, initialAudioTaskId, in
     setError(null);
     setActiveSceneId(null);
     setSceneSaveStatus("");
+    setRenderJob(null);
   };
 
   useEffect(() => {
@@ -2140,6 +2141,7 @@ export function AiVideoDirectorClient({ embedded = false, initialAudioTaskId, in
 
   const loadSavedProject = async (projectId: string) => {
     setError(null);
+    setRenderJob(null);
     setSavedProjectsLoading(true);
     try {
       const res = await apiFetch(`/api/tools/ai-video-director/projects?projectId=${encodeURIComponent(projectId)}`, {
@@ -2155,6 +2157,10 @@ export function AiVideoDirectorClient({ embedded = false, initialAudioTaskId, in
       setSelectedIdeaId(saved.selectedIdea.id);
       setProject(saved);
       if (saved.paymentId) setPaymentId(saved.paymentId);
+      try {
+        const jobResponse = await apiFetch(`/api/tools/ai-video-director/render?projectId=${encodeURIComponent(projectId)}`);
+        if (jobResponse.ok) setRenderJob(await jobResponse.json() as RenderJob);
+      } catch {}
       window.setTimeout(() => {
         document.getElementById("storyboard")?.scrollIntoView({ behavior: "smooth", block: "start" });
       }, 50);
