@@ -10,7 +10,10 @@ const h3Width = Number(process.env.H3_RENDER_WIDTH || 864);
 const h3Height = Number(process.env.H3_RENDER_HEIGHT || 480);
 const h3Steps = Number(process.env.H3_RENDER_STEPS || 20);
 const h3Turbo = process.env.H3_RENDER_TURBO === "1";
-const h3ClipName = process.env.H3_CLIP_NAME || "qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors";
+// This host runs PyTorch cu126, where ComfyUI reports NVFP4 as emulated.
+// Keep the native INT8 encoder as the stable default; NVFP4 remains selectable
+// explicitly with H3_CLIP_NAME on hosts with a validated quantized path.
+const h3ClipName = process.env.H3_CLIP_NAME || "qwen3vl_32b_minimax_h3_int8_convrot.safetensors";
 
 const manifestPath = process.argv[2];
 if (!manifestPath) throw new Error("manifest path is required");
