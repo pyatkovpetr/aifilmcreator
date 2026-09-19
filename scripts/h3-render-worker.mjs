@@ -2,18 +2,19 @@ import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
+import { inspectVideo } from "./h3-video-check.mjs";
 
 const execFileAsync = promisify(execFile);
 const comfyUrl = (process.env.COMFYUI_URL || "http://127.0.0.1:8188").replace(/\/$/, "");
 const ffmpegBin = process.env.H3_FFMPEG_BIN || "ffmpeg";
+const ffprobeBin = process.env.H3_FFPROBE_BIN || "ffprobe";
 const h3Width = Number(process.env.H3_RENDER_WIDTH || 864);
 const h3Height = Number(process.env.H3_RENDER_HEIGHT || 480);
 const h3Steps = Number(process.env.H3_RENDER_STEPS || 20);
 const h3Turbo = process.env.H3_RENDER_TURBO === "1";
-// This host runs PyTorch cu126, where ComfyUI reports NVFP4 as emulated.
-// Keep the native INT8 encoder as the stable default; NVFP4 remains selectable
-// explicitly with H3_CLIP_NAME on hosts with a validated quantized path.
-const h3ClipName = process.env.H3_CLIP_NAME || "qwen3vl_32b_minimax_h3_int8_convrot.safetensors";
+// On the cu126 4090 host, the INT8 text encoder yielded fully black output
+// with identical seed/workflow while NVFP4 produced visible frames.
+const h3ClipName = process.env.H3_CLIP_NAME || "qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors";
 
 const manifestPath = process.argv[2];
 if (!manifestPath) throw new Error("manifest path is required");
@@ -43,8 +44,7 @@ function h3Length(seconds) {
 function workflowForScene(scene, index, config) {
   const prompt = [
     scene.prompt,
-    `Negative / exclude: ${scene.negativePrompt || "no text, no logos, no watermark, no subtitles, no artifacts"}.`,
-    "Generate coherent live-action video with natural motion and continuity for the same lead character. Keep the subject and environment clearly visible in every frame with correct exposure, lifted shadow detail, and no black, blank, or underexposed frames.",
+    "Cinematic live-action footage, naturally exposed, clearly visible subject and environment, coherent motion and visual continuity.",
   ].join(" ");
   const seed = (Number(config.seed || 20260918) + index * 7919 + Number(config.attempt || 0) * 7919) >>> 0;
   return {
@@ -114,24 +114,6 @@ async function downloadReference(reference, target) {
   await writeFile(target, Buffer.from(await response.arrayBuffer()));
 }
 
-async function hasVisibleFrames(path) {
-  try {
-    const probe = await execFileAsync(ffmpegBin, [
-      "-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", path,
-    ], { maxBuffer: 1024 * 1024 });
-    const duration = Number(probe.stdout.trim());
-    if (!Number.isFinite(duration) || duration <= 0) return false;
-    const scan = await execFileAsync(ffmpegBin, [
-      "-hide_banner", "-i", path, "-vf", "blackdetect=d=1:pix_th=0.01", "-an", "-f", "null", "-",
-    ], { maxBuffer: 4 * 1024 * 1024 });
-    const ends = [...scan.stderr.matchAll(/black_end:\s*([0-9.]+)/g)].map((match) => Number(match[1])).filter(Number.isFinite);
-    const lastBlackEnd = ends.at(-1);
-    return !Number.isFinite(lastBlackEnd) || lastBlackEnd < duration - 0.25;
-  } catch {
-    return false;
-  }
-}
-
 function concatLine(path) {
   return `file '${path.replaceAll("'", "'\\''")}'`;
 }
@@ -165,9 +147,10 @@ try {
       await writeStatus({ stage: "waiting_comfy", scene: index + 1, comfyPromptId: queued.prompt_id, attempt, maxAttempts });
       const item = await waitForPrompt(queued.prompt_id, index);
       await downloadReference(outputReference(item), target);
-      visible = await hasVisibleFrames(target);
+      const inspection = await inspectVideo(target, { ffmpegBin, ffprobeBin });
+      visible = inspection.visible;
       if (visible) break;
-      await writeStatus({ stage: "black_segment_detected", scene: index + 1, attempt, maxAttempts });
+      await writeStatus({ stage: "black_segment_detected", scene: index + 1, attempt, maxAttempts, videoInspection: inspection });
     }
     if (!visible) throw new Error(`scene ${index + 1}: H3 returned only black frames after ${maxAttempts} attempts`);
     segmentPaths.push(target);
