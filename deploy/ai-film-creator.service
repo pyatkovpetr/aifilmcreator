@@ -11,6 +11,7 @@ EnvironmentFile=-/opt/ai-film-creator/.env
 Environment=NODE_ENV=production
 Environment=PORT=4310
 Environment=HOSTNAME=127.0.0.1
+Environment=AI_DIRECTOR_RENDER_LAUNCHER=systemd
 ExecStart=/usr/bin/pnpm exec next start -p 4310 -H 127.0.0.1
 Restart=always
 RestartSec=5

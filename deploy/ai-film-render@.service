@@ -1,0 +1,18 @@
+[Unit]
+Description=AI Film Creator render job %i
+After=network-online.target comfyui-h3.service
+Wants=network-online.target comfyui-h3.service
+
+[Service]
+Type=exec
+User=root
+WorkingDirectory=/opt/ai-film-creator
+EnvironmentFile=-/opt/ai-film-creator/.env
+Environment=NODE_ENV=production
+ExecStart=/usr/bin/node /opt/ai-film-creator/scripts/h3-render-worker.mjs /var/lib/ai-film-creator/renders/%i/manifest.json
+Restart=no
+TimeoutStopSec=20
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ReadWritePaths=/var/lib/ai-film-creator /opt/comfyui

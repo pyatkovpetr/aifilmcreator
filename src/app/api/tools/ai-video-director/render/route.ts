@@ -1,6 +1,7 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { spawn } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
+import { promisify } from "node:util";
 import { NextRequest, NextResponse } from "next/server";
 import { toProjectId } from "@/lib/ai-video-director";
 import { ensureFullProject } from "@/lib/standalone-director-api";
@@ -9,6 +10,7 @@ import { TTS_VOICES } from "@/lib/tts-voices";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
+const execFileAsync = promisify(execFile);
 
 function dataDir() {
   return process.env.AI_DIRECTOR_DATA_DIR || join(process.cwd(), ".data");
@@ -44,9 +46,18 @@ export async function POST(req: NextRequest) {
     const manifest = { jobId, project, seed: Number(process.env.H3_RENDER_SEED || 20260918), voiceover: voiceoverText ? { text: voiceoverText, voice, instructions } : null };
     await writeFile(join(directory, "manifest.json"), JSON.stringify(manifest, null, 2), "utf8");
     await writeFile(join(directory, "status.json"), JSON.stringify({ status: "queued", stage: "queued", jobId, projectId, totalScenes: project.scenes.length, completedScenes: 0, createdAt: new Date().toISOString() }, null, 2), "utf8");
-    const worker = join(process.cwd(), "scripts", "h3-render-worker.mjs");
-    const child = spawn(process.execPath, [worker, join(directory, "manifest.json")], { detached: true, stdio: "ignore", env: process.env });
-    child.unref();
+    try {
+      if (process.env.AI_DIRECTOR_RENDER_LAUNCHER === "systemd") {
+        await execFileAsync("systemctl", ["start", `ai-film-render@${jobId}.service`], { timeout: 15_000 });
+      } else {
+        const worker = join(process.cwd(), "scripts", "h3-render-worker.mjs");
+        const child = spawn(process.execPath, [worker, join(directory, "manifest.json")], { detached: true, stdio: "ignore", env: process.env });
+        child.unref();
+      }
+    } catch (error) {
+      await writeFile(join(directory, "status.json"), JSON.stringify({ status: "failed", stage: "launch_failed", jobId, projectId, error: error instanceof Error ? error.message : "Не удалось запустить рендер" }, null, 2), "utf8");
+      throw error;
+    }
     return NextResponse.json({ status: "queued", jobId, projectId, totalScenes: project.scenes.length, statusUrl: `/api/tools/ai-video-director/render?jobId=${encodeURIComponent(jobId)}` }, { status: 202 });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Не удалось поставить видео в очередь" }, { status: 500 });

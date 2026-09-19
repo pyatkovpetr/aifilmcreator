@@ -28,6 +28,7 @@ Without `AI_DIRECTOR_LLM_URL`, the app uses the grounded deterministic generator
 ## Server deployment
 
 The systemd unit in `deploy/ai-film-creator.service` binds to `127.0.0.1:4310`, keeps project data in `/var/lib/ai-film-creator`, and is intended to sit behind an existing reverse proxy if a public hostname is added later.
+Install `deploy/ai-film-render@.service` alongside it. Each render then has its own systemd unit and survives a web-service restart.
 
 ```bash
 pnpm install --frozen-lockfile
