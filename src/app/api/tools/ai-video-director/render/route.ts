@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { toProjectId } from "@/lib/ai-video-director";
 import { ensureFullProject } from "@/lib/standalone-director-api";
 import { getProject } from "@/lib/store";
+import { TTS_VOICES } from "@/lib/tts-voices";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -24,18 +25,23 @@ async function readJob(jobId: string) {
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json() as { projectId?: unknown; paymentId?: unknown };
+    const body = await req.json() as { projectId?: unknown; paymentId?: unknown; voiceover?: { text?: unknown; voice?: unknown; instructions?: unknown } };
     const projectId = toProjectId(body.projectId);
     if (!projectId) return NextResponse.json({ error: "Некорректный проект" }, { status: 400 });
     const stored = await getProject(projectId);
     if (!stored) return NextResponse.json({ error: "Проект не найден" }, { status: 404 });
     const paymentId = typeof body.paymentId === "string" ? body.paymentId : "";
     if (!stored.unlocked && paymentId !== stored.paymentId) return NextResponse.json({ error: "Нужно открыть полный сценарий" }, { status: 403 });
+    const voiceoverText = typeof body.voiceover?.text === "string" ? body.voiceover.text.trim() : "";
+    if (voiceoverText.length > 5000) return NextResponse.json({ error: "Озвучка: максимум 5000 символов" }, { status: 400 });
+    const voice = typeof body.voiceover?.voice === "string" ? body.voiceover.voice : "serena";
+    if (voiceoverText && !TTS_VOICES.includes(voice as typeof TTS_VOICES[number])) return NextResponse.json({ error: "Неизвестный голос" }, { status: 400 });
+    const instructions = typeof body.voiceover?.instructions === "string" ? body.voiceover.instructions.trim().slice(0, 300) : "";
     const project = await ensureFullProject(stored);
     const jobId = `${projectId}-${Date.now()}`;
     const directory = jobDir(jobId);
     await mkdir(directory, { recursive: true });
-    const manifest = { jobId, project, seed: Number(process.env.H3_RENDER_SEED || 20260918) };
+    const manifest = { jobId, project, seed: Number(process.env.H3_RENDER_SEED || 20260918), voiceover: voiceoverText ? { text: voiceoverText, voice, instructions } : null };
     await writeFile(join(directory, "manifest.json"), JSON.stringify(manifest, null, 2), "utf8");
     await writeFile(join(directory, "status.json"), JSON.stringify({ status: "queued", stage: "queued", jobId, projectId, totalScenes: project.scenes.length, completedScenes: 0, createdAt: new Date().toISOString() }, null, 2), "utf8");
     const worker = join(process.cwd(), "scripts", "h3-render-worker.mjs");

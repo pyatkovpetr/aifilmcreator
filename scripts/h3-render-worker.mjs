@@ -3,6 +3,7 @@ import { dirname, join } from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { inspectVideo } from "./h3-video-check.mjs";
+import { addVoiceover } from "./neuraldeep-tts.mjs";
 
 const execFileAsync = promisify(execFile);
 const comfyUrl = (process.env.COMFYUI_URL || "http://127.0.0.1:8188").replace(/\/$/, "");
@@ -158,7 +159,12 @@ try {
   }
   await writeStatus({ stage: "stitching", completedScenes: segmentPaths.length });
   await concatVideos(segmentPaths);
-  await writeStatus({ status: "completed", stage: "completed", completedScenes: segmentPaths.length, finalPath, finalUrl: `/api/tools/ai-video-director/render/file?jobId=${encodeURIComponent(manifest.jobId)}`, segmentPaths });
+  let voiceoverResult = null;
+  if (manifest.voiceover?.text) {
+    await writeStatus({ stage: "synthesizing_voiceover" });
+    voiceoverResult = await addVoiceover(finalPath, manifest.voiceover, jobDir, { ffmpegBin });
+  }
+  await writeStatus({ status: "completed", stage: "completed", completedScenes: segmentPaths.length, finalPath, finalUrl: `/api/tools/ai-video-director/render/file?jobId=${encodeURIComponent(manifest.jobId)}`, segmentPaths, voiceoverResult });
 } catch (error) {
   await writeStatus({ status: "failed", stage: "failed", error: error instanceof Error ? error.message : String(error) });
   process.exitCode = 1;

@@ -63,6 +63,7 @@ import type {
   VideoDirectorMode,
   VideoDirectorScene,
 } from "@/lib/ai-video-director";
+import { TTS_VOICES } from "@/lib/tts-voices";
 
 const YooKassaWidget = lazy(() =>
   import("@/components/billing/yookassa-widget").then((m) => ({
@@ -1719,6 +1720,9 @@ export function AiVideoDirectorClient({ embedded = false, initialAudioTaskId, in
   const [sceneSaveStatus, setSceneSaveStatus] = useState("");
   const [renderJob, setRenderJob] = useState<RenderJob | null>(null);
   const [renderLoading, setRenderLoading] = useState(false);
+  const [voiceoverText, setVoiceoverText] = useState("");
+  const [voiceoverVoice, setVoiceoverVoice] = useState<typeof TTS_VOICES[number]>("serena");
+  const [voiceoverStyle, setVoiceoverStyle] = useState("спокойный кинодиктор, выразительные паузы");
   const [referenceSlotFiles, setReferenceSlotFiles] = useState<Record<string, string>>({});
   const [activeReferenceSlot, setActiveReferenceSlot] = useState<string | null>(null);
   const initialAudioTaskRef = useRef("");
@@ -2341,6 +2345,7 @@ export function AiVideoDirectorClient({ embedded = false, initialAudioTaskId, in
       const data = await postJson<RenderJob>("/api/tools/ai-video-director/render", {
         projectId: project.projectId,
         paymentId: paymentId || undefined,
+        voiceover: voiceoverText.trim() ? { text: voiceoverText.trim(), voice: voiceoverVoice, instructions: voiceoverStyle.trim() } : undefined,
       });
       setRenderJob(data);
     } catch (e) {
@@ -2830,6 +2835,22 @@ export function AiVideoDirectorClient({ embedded = false, initialAudioTaskId, in
                   Сгенерировать видео H3
                 </button>
               </div>
+              <div className="mt-5 grid gap-3 border-t border-[#dfe1f1] pt-5 md:grid-cols-[1fr_180px]">
+                <label className="block text-xs font-bold text-[#666982]">
+                  Озвучка NeuralDeep · текст диктора (необязательно)
+                  <textarea value={voiceoverText} onChange={(event) => setVoiceoverText(event.target.value)} maxLength={5000} rows={3} placeholder="Текст озвучки для готового фильма…" className="mt-2 w-full rounded-xl border border-[#dfe1f1] bg-white px-3 py-2 text-sm text-[#202039]" />
+                </label>
+                <label className="block text-xs font-bold text-[#666982]">
+                  Голос
+                  <select value={voiceoverVoice} onChange={(event) => setVoiceoverVoice(event.target.value as typeof TTS_VOICES[number])} className="mt-2 w-full rounded-xl border border-[#dfe1f1] bg-white px-3 py-2 text-sm text-[#202039]">
+                    {TTS_VOICES.map((voice) => <option key={voice} value={voice}>{voice}</option>)}
+                  </select>
+                </label>
+                <label className="block text-xs font-bold text-[#666982] md:col-span-2">
+                  Манера речи
+                  <input value={voiceoverStyle} onChange={(event) => setVoiceoverStyle(event.target.value)} maxLength={300} className="mt-2 w-full rounded-xl border border-[#dfe1f1] bg-white px-3 py-2 text-sm text-[#202039]" />
+                </label>
+              </div>
             </div>
 
             {renderJob && (
@@ -2848,6 +2869,7 @@ export function AiVideoDirectorClient({ embedded = false, initialAudioTaskId, in
                   )}
                 </div>
                 {renderJob.status === "failed" && <p className="mt-3 text-sm font-semibold text-rose-600">{renderJob.error || "Рендер завершился ошибкой"}</p>}
+                {renderJob.status === "completed" && renderJob.finalUrl && <video className="mt-4 w-full max-w-3xl rounded-xl bg-black" controls preload="metadata" src={renderJob.finalUrl} />}
               </div>
             )}
 
