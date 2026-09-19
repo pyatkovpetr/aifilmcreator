@@ -43,11 +43,18 @@ function h3Length(seconds) {
 }
 
 function workflowForScene(scene, index, config) {
-  const prompt = [
+  const provenPrompt = [
     scene.prompt,
-    "Cinematic live-action footage, naturally exposed, clearly visible subject and environment, coherent motion and visual continuity.",
+    `Negative / exclude: ${scene.negativePrompt || "no text, no logos, no watermark, no subtitles, no artifacts"}.`,
+    "Generate coherent live-action video with natural motion and continuity for the same lead character. Keep the subject and environment clearly visible in every frame with correct exposure, lifted shadow detail, and no black, blank, or underexposed frames.",
   ].join(" ");
-  const seed = (Number(config.seed || 20260918) + index * 7919 + Number(config.attempt || 0) * 7919) >>> 0;
+  // The longer conditioning produced a real character on this host; the short
+  // variant produced a fully black clip with the same seed and checkpoints.
+  // Alternate only on retries so a failed prompt can be isolated in status.
+  const prompt = Number(config.attempt || 0) % 2 === 0
+    ? provenPrompt
+    : `${scene.prompt} Bright practical lighting, clear human subject and background, balanced exposure in every frame, realistic motion.`;
+  const seed = (Number(config.seed || 20260918) + index * 7919 + Math.floor(Number(config.attempt || 0) / 2) * 7919) >>> 0;
   return {
     "119": { class_type: "VAELoader", inputs: { vae_name: "minimax_h3_video_vae_fp16.safetensors" } },
     "122": { class_type: "VAEDecode", inputs: { samples: ["125", 0], vae: ["119", 0] } },
@@ -143,7 +150,7 @@ try {
     let visible = false;
     for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
       const stage = attempt === 0 ? "rendering" : "retrying_black_segment";
-      await writeStatus({ stage, scene: index + 1, totalScenes: manifest.project.scenes.length, completedScenes: index, segmentSeconds, attempt, maxAttempts, prompt: scene.prompt });
+      await writeStatus({ stage, scene: index + 1, totalScenes: manifest.project.scenes.length, completedScenes: index, segmentSeconds, attempt, maxAttempts, conditioningProfile: attempt % 2 === 0 ? "proven_long" : "bright_fallback", prompt: scene.prompt });
       const queued = await queue(workflowForScene(scene, index, { ...config, attempt }), index, attempt);
       await writeStatus({ stage: "waiting_comfy", scene: index + 1, comfyPromptId: queued.prompt_id, attempt, maxAttempts });
       const item = await waitForPrompt(queued.prompt_id, index);
