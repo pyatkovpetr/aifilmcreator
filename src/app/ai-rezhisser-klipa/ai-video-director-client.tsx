@@ -2165,6 +2165,13 @@ export function AiVideoDirectorClient({ embedded = false, initialAudioTaskId, in
     }
   };
 
+  useEffect(() => {
+    const requestedProjectId = new URLSearchParams(window.location.search).get("projectId");
+    if (requestedProjectId && /^[a-f0-9-]{36}$/i.test(requestedProjectId)) {
+      void loadSavedProject(requestedProjectId);
+    }
+  }, []);
+
   const loadFullProject = async (payId?: string | null) => {
     if (!project?.projectId) return false;
     const data = await postJson<PublicVideoDirectorProject & { paymentId?: string }>(
