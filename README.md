@@ -30,6 +30,8 @@ Without `AI_DIRECTOR_LLM_URL`, the app uses the grounded deterministic generator
 The systemd unit in `deploy/ai-film-creator.service` binds to `127.0.0.1:4310`, keeps project data in `/var/lib/ai-film-creator`, and is intended to sit behind an existing reverse proxy if a public hostname is added later.
 Install `deploy/ai-film-render@.service` alongside it. Each render then has its own systemd unit and survives a web-service restart.
 
+For MiniMax H3 INT8 inference on the RTX 4090, `deploy/comfyui-h3.service` uses an isolated PyTorch CUDA 13 virtualenv at `/opt/comfyui/.venv-cu130`; keep the previous `/opt/comfyui/.venv` intact for rollback. The CUDA 13 runtime libraries and NCCL path are declared explicitly in the unit.
+
 ```bash
 pnpm install --frozen-lockfile
 pnpm build

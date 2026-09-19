@@ -10,7 +10,8 @@ WorkingDirectory=/opt/comfyui
 Environment=PYTHONUNBUFFERED=1
 Environment=CUDA_VISIBLE_DEVICES=0
 Environment=PYTHONPATH=/opt/comfyui
-ExecStart=/opt/comfyui/.venv/bin/python main.py --listen 127.0.0.1 --port 8188 --disable-auto-launch --lowvram --fp16-vae --disable-cuda-malloc --preview-method none
+Environment=LD_LIBRARY_PATH=/usr/local/lib/python3.10/dist-packages/nvidia/cu13/lib:/opt/comfyui/.venv-cu130/lib/python3.10/site-packages/nvidia/nccl/lib
+ExecStart=/opt/comfyui/.venv-cu130/bin/python main.py --listen 127.0.0.1 --port 8188 --disable-auto-launch --lowvram --fp16-vae --disable-cuda-malloc --preview-method none
 Restart=on-failure
 RestartSec=10
 TimeoutStopSec=30
