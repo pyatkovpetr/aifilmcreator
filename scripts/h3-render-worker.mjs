@@ -38,9 +38,7 @@ function workflowForScene(scene, index, config) {
     `Negative / exclude: ${scene.negativePrompt || "no text, no logos, no watermark, no subtitles, no artifacts"}.`,
     "Generate coherent live-action video with natural motion and continuity for the same lead character. Keep the subject and environment clearly visible in every frame with correct exposure, lifted shadow detail, and no black, blank, or underexposed frames.",
   ].join(" ");
-  // The base seed produced an all-black first segment on the FL2VA checkpoint.
-  // Start the sequence one step into the tested seed range for stable output.
-  const seed = (Number(config.seed || 20260918) + (index + 1) * 7919) >>> 0;
+  const seed = (Number(config.seed || 20260918) + index * 7919 + Number(config.attempt || 0) * 7919) >>> 0;
   return {
     "119": { class_type: "VAELoader", inputs: { vae_name: "minimax_h3_video_vae_fp16.safetensors" } },
     "122": { class_type: "VAEDecode", inputs: { samples: ["125", 0], vae: ["119", 0] } },
@@ -69,11 +67,11 @@ async function comfyJson(pathname, init = {}) {
   return text ? JSON.parse(text) : {};
 }
 
-async function queue(workflow, index) {
+async function queue(workflow, index, attempt) {
   return comfyJson("/prompt", {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ prompt: workflow, client_id: `${manifest.jobId}-${index}` }),
+    body: JSON.stringify({ prompt: workflow, client_id: `${manifest.jobId}-${index}-${attempt}` }),
   });
 }
 
@@ -108,6 +106,24 @@ async function downloadReference(reference, target) {
   await writeFile(target, Buffer.from(await response.arrayBuffer()));
 }
 
+async function hasVisibleFrames(path) {
+  try {
+    const probe = await execFileAsync(ffmpegBin, [
+      "-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", path,
+    ], { maxBuffer: 1024 * 1024 });
+    const duration = Number(probe.stdout.trim());
+    if (!Number.isFinite(duration) || duration <= 0) return false;
+    const scan = await execFileAsync(ffmpegBin, [
+      "-hide_banner", "-i", path, "-vf", "blackdetect=d=1:pix_th=0.01", "-an", "-f", "null", "-",
+    ], { maxBuffer: 4 * 1024 * 1024 });
+    const ends = [...scan.stderr.matchAll(/black_end:\s*([0-9.]+)/g)].map((match) => Number(match[1])).filter(Number.isFinite);
+    const lastBlackEnd = ends.at(-1);
+    return !Number.isFinite(lastBlackEnd) || lastBlackEnd < duration - 0.25;
+  } catch {
+    return false;
+  }
+}
+
 function concatLine(path) {
   return `file '${path.replaceAll("'", "'\\''")}'`;
 }
@@ -132,11 +148,20 @@ try {
     const target = join(outputDir, `scene-${String(index + 1).padStart(3, "0")}.mp4`);
     const segmentSeconds = Number(process.env.H3_RENDER_SECONDS || Math.max(5, scene.endSec - scene.startSec));
     const config = { width: Number(process.env.H3_RENDER_WIDTH || 608), height: Number(process.env.H3_RENDER_HEIGHT || 352), segmentSeconds, seed: manifest.seed };
-    await writeStatus({ stage: "rendering", scene: index + 1, totalScenes: manifest.project.scenes.length, completedScenes: index, segmentSeconds, prompt: scene.prompt });
-    const queued = await queue(workflowForScene(scene, index, config), index);
-    await writeStatus({ stage: "waiting_comfy", scene: index + 1, comfyPromptId: queued.prompt_id });
-    const item = await waitForPrompt(queued.prompt_id, index);
-    await downloadReference(outputReference(item), target);
+    const maxAttempts = Math.max(1, Number(process.env.H3_RENDER_BLACK_RETRIES || 3) + 1);
+    let visible = false;
+    for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+      const stage = attempt === 0 ? "rendering" : "retrying_black_segment";
+      await writeStatus({ stage, scene: index + 1, totalScenes: manifest.project.scenes.length, completedScenes: index, segmentSeconds, attempt, maxAttempts, prompt: scene.prompt });
+      const queued = await queue(workflowForScene(scene, index, { ...config, attempt }), index, attempt);
+      await writeStatus({ stage: "waiting_comfy", scene: index + 1, comfyPromptId: queued.prompt_id, attempt, maxAttempts });
+      const item = await waitForPrompt(queued.prompt_id, index);
+      await downloadReference(outputReference(item), target);
+      visible = await hasVisibleFrames(target);
+      if (visible) break;
+      await writeStatus({ stage: "black_segment_detected", scene: index + 1, attempt, maxAttempts });
+    }
+    if (!visible) throw new Error(`scene ${index + 1}: H3 returned only black frames after ${maxAttempts} attempts`);
     segmentPaths.push(target);
     await writeStatus({ stage: "segment_saved", scene: index + 1, completedScenes: index + 1, segmentPaths });
   }
