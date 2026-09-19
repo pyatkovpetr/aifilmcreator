@@ -41,8 +41,6 @@ function workflowForScene(scene, index, config) {
   const seed = (Number(config.seed || 20260918) + index * 7919) >>> 0;
   return {
     "119": { class_type: "VAELoader", inputs: { vae_name: "minimax_h3_video_vae_fp16.safetensors" } },
-    "120": { class_type: "VAELoader", inputs: { vae_name: "minimax_h3_audio_vae_fp32.safetensors" } },
-    "121": { class_type: "VAEDecodeAudio", inputs: { samples: ["125", 0], vae: ["120", 0] } },
     "122": { class_type: "VAEDecode", inputs: { samples: ["125", 0], vae: ["119", 0] } },
     "123": { class_type: "KSamplerSelect", inputs: { sampler_name: "res_multistep" } },
     "124": { class_type: "BasicScheduler", inputs: { model: ["135", 0], scheduler: "simple", steps: 8, denoise: 1.0 } },
@@ -51,7 +49,10 @@ function workflowForScene(scene, index, config) {
     "127": { class_type: "UNETLoader", inputs: { unet_name: "minimax_h3_fl2va_pruned_int8_convrot.safetensors", weight_dtype: "default" } },
     "128": { class_type: "CLIPLoader", inputs: { clip_name: "qwen3vl_32b_minimax_h3_int8_convrot.safetensors", type: "minimax", device: "default" } },
     "129": { class_type: "RandomNoise", inputs: { noise_seed: seed } },
-    "130": { class_type: "CreateVideo", inputs: { images: ["122", 0], audio: ["121", 0], fps: 24, bit_depth: 8 } },
+    // The director render has no uploaded soundtrack. Leaving the optional
+    // audio input empty avoids exporting the NaN/Inf audio latent produced by
+    // some FL2VA checkpoints while keeping the visual H3 segment intact.
+    "130": { class_type: "CreateVideo", inputs: { images: ["122", 0], fps: 24, bit_depth: 8 } },
     "131": { class_type: "MiniMaxH3ImageToVideo", inputs: { clip: ["128", 0], vae: ["119", 0], prompt, width: config.width, height: config.height, length: h3Length(config.segmentSeconds) } },
     "134": { class_type: "LoraLoaderModelOnly", inputs: { model: ["127", 0], lora_name: "minimax_h3_fl2v_turbo_8step_v1.0_comfyui_bf16.safetensors", strength_model: 1.0 } },
     "135": { class_type: "ComfySwitchNode", inputs: { on_false: ["127", 0], on_true: ["134", 0], switch: true } },
