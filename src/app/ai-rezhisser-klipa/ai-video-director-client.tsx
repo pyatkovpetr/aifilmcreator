@@ -148,6 +148,7 @@ type RenderJob = {
   completedScenes?: number;
   finalUrl?: string;
   error?: string;
+  voiceover?: { text: string; voice: string; instructions?: string } | null;
 };
 
 type AnalyzeResult = {
@@ -2142,6 +2143,9 @@ export function AiVideoDirectorClient({ embedded = false, initialAudioTaskId, in
   const loadSavedProject = async (projectId: string) => {
     setError(null);
     setRenderJob(null);
+    setVoiceoverText("");
+    setVoiceoverVoice("serena");
+    setVoiceoverStyle("спокойный кинодиктор, выразительные паузы");
     setSavedProjectsLoading(true);
     try {
       const res = await apiFetch(`/api/tools/ai-video-director/projects?projectId=${encodeURIComponent(projectId)}`, {
@@ -2159,7 +2163,17 @@ export function AiVideoDirectorClient({ embedded = false, initialAudioTaskId, in
       if (saved.paymentId) setPaymentId(saved.paymentId);
       try {
         const jobResponse = await apiFetch(`/api/tools/ai-video-director/render?projectId=${encodeURIComponent(projectId)}`);
-        if (jobResponse.ok) setRenderJob(await jobResponse.json() as RenderJob);
+        if (jobResponse.ok) {
+          const lastJob = await jobResponse.json() as RenderJob;
+          setRenderJob(lastJob);
+          if (lastJob.voiceover?.text) {
+            setVoiceoverText(lastJob.voiceover.text);
+            if (TTS_VOICES.includes(lastJob.voiceover.voice as typeof TTS_VOICES[number])) {
+              setVoiceoverVoice(lastJob.voiceover.voice as typeof TTS_VOICES[number]);
+            }
+            if (lastJob.voiceover.instructions) setVoiceoverStyle(lastJob.voiceover.instructions);
+          }
+        }
       } catch {}
       window.setTimeout(() => {
         document.getElementById("storyboard")?.scrollIntoView({ behavior: "smooth", block: "start" });

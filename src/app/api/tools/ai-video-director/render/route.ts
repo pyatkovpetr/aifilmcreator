@@ -22,7 +22,13 @@ function jobDir(jobId: string) {
 }
 
 async function readJob(jobId: string) {
-  return JSON.parse(await readFile(join(jobDir(jobId), "status.json"), "utf8")) as Record<string, unknown>;
+  const status = JSON.parse(await readFile(join(jobDir(jobId), "status.json"), "utf8")) as Record<string, unknown>;
+  try {
+    const manifest = JSON.parse(await readFile(join(jobDir(jobId), "manifest.json"), "utf8")) as { voiceover?: unknown };
+    return { ...status, voiceover: manifest.voiceover || null };
+  } catch {
+    return status;
+  }
 }
 
 export async function POST(req: NextRequest) {
