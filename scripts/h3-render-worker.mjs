@@ -36,9 +36,11 @@ function workflowForScene(scene, index, config) {
   const prompt = [
     scene.prompt,
     `Negative / exclude: ${scene.negativePrompt || "no text, no logos, no watermark, no subtitles, no artifacts"}.`,
-    "Generate coherent live-action video with natural motion and continuity for the same lead character.",
+    "Generate coherent live-action video with natural motion and continuity for the same lead character. Keep the subject and environment clearly visible in every frame with correct exposure, lifted shadow detail, and no black, blank, or underexposed frames.",
   ].join(" ");
-  const seed = (Number(config.seed || 20260918) + index * 7919) >>> 0;
+  // The base seed produced an all-black first segment on the FL2VA checkpoint.
+  // Start the sequence one step into the tested seed range for stable output.
+  const seed = (Number(config.seed || 20260918) + (index + 1) * 7919) >>> 0;
   return {
     "119": { class_type: "VAELoader", inputs: { vae_name: "minimax_h3_video_vae_fp16.safetensors" } },
     "122": { class_type: "VAEDecode", inputs: { samples: ["125", 0], vae: ["119", 0] } },
